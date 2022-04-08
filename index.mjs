@@ -1,27 +1,56 @@
-import {loadStdlib} from '@reach-sh/stdlib';
-import * as backend from './build/index.main.mjs';
-const stdlib = loadStdlib(process.env);
+import { loadStdlib } from "@reach-sh/stdlib";
+import * as backend from "./build/index.main.mjs";
 
+const stdlib = loadStdlib();
 const startingBalance = stdlib.parseCurrency(100);
 
-const [ accAlice, accBob ] =
-  await stdlib.newTestAccounts(2, startingBalance);
-console.log('Hello, Alice and Bob!');
+const accAlice = await stdlib.newTestAccount(startingBalance);
+const accBob = await stdlib.newTestAccount(startingBalance);
 
-console.log('Launching...');
+const getBalance = async (who) =>
+  stdlib.formatCurrency(await stdlib.balanceOf(who), 4);
+const beforeAlice = await getBalance(accAlice);
+const beforeBob = await getBalance(accBob);
+
 const ctcAlice = accAlice.contract(backend);
-const ctcBob = accBob.contract(backend, ctcAlice.getInfo());
 
-console.log('Starting backends...');
+let accRelayProvide = null;
+const accRelayP = new Promise((resolve, reject) => {
+  accRelayProvide = resolve;
+});
+
 await Promise.all([
   backend.Alice(ctcAlice, {
-    ...stdlib.hasRandom,
-    // implement Alice's interact object here
+    amount: stdlib.parseCurrency(25),
+    getRelay: async () => {
+      console.log(`Alice creates a Relay account.`);
+      const accRelay = await stdlib.newTestAccount(stdlib.minimumBalance);
+      console.log(`Alice shares it with Bob outside of the network.`);
+      accRelayProvide(accRelay);
+      return accRelay.networkAccount;
+    },
   }),
-  backend.Bob(ctcBob, {
-    ...stdlib.hasRandom,
-    // implement Bob's interact object here
-  }),
+  (async () => {
+    console.log(
+      `Bob waits for Alice to give him the information about the Relay account.`
+    );
+    const accRelay = await accRelayP;
+    console.log(`Bob deposits some funds into the Relay to use it.`);
+    await stdlib.transfer(accBob, accRelay, stdlib.parseCurrency(10));
+    console.log(`Bob attaches to the contract as the Relay.`);
+    const ctcRelay = accRelay.contract(backend, ctcAlice.getInfo());
+    console.log(`Bob joins the application as the Relay.`);
+    return backend.Relay(ctcRelay, {
+      getBob: async () => {
+        console.log(`Bob, acting as the Relay, gives his information.`);
+        return accBob.networkAccount;
+      },
+    });
+  })(),
 ]);
 
-console.log('Goodbye, Alice and Bob!');
+const afterAlice = await getBalance(accAlice);
+const afterBob = await getBalance(accBob);
+
+console.log(`Alice went from ${beforeAlice} to ${afterAlice}.`);
+console.log(`Bob went from ${beforeBob} to ${afterBob}.`);

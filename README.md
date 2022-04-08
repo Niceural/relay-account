@@ -10,7 +10,6 @@ This decentralized application consists in a third-party account, which an accou
   - [Problem Analysis](#problem-analysis)
   - [Data Definition](#data-definition)
   - [Communication Construction](#communication-construction)
-- [Assertion Insertion](#assertion-insertion)
 
 # Backend
 
@@ -43,5 +42,3 @@ The communication pattern is described below:
 2. the consensus remembers what the Relay address is;
 3. the Relay publishes Bob's address;
 4. the consensus pays Bob.
-
-# Assertion Insertion
